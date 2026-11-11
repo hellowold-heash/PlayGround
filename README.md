@@ -3,7 +3,7 @@
 <!-- omgithub:readme:start -->
 ## 🚀 Build, play, and remix with OMGithub
 
-**Created using [OMGithub.com](https://go.ondev.store/).**
+**Remixed using [OMGithub.com](https://go.ondev.store/).**
 
 [![OMGithub](https://img.shields.io/badge/OMGithub-Open%20project-orange?style=for-the-badge)](https://go.ondev.store/hellowold-heash/PlayGround)
 [![GitHub](https://img.shields.io/badge/GitHub-Source-181717?logo=github&style=for-the-badge)](https://github.com/hellowold-heash/PlayGround)
@@ -15,4 +15,5 @@
 - 🐛 [Report an issue](https://github.com/hellowold-heash/PlayGround/issues).
 - 👤 [Explore the creator's projects](https://go.ondev.store/hellowold-heash).
 - 🌍 [Create with OMGithub](https://go.ondev.store/).
+- 🧬 [Explore the remix source](https://github.com/hellowold-heash/PlayGround).
 <!-- omgithub:readme:end -->
