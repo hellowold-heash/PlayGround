@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10100f">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A6%3C/text%3E%3C/svg%3E">
+  <title>미스터리 로드: 잿빛 심연</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="미스터리 로드 홈"><span class="brand-mark">✦</span><span>미스터리 로드<small>잿빛 심연</small></span></a>
+      <div class="top-actions"><span class="run-tag"><i></i> 탐험 중</span><button class="icon-button" id="helpBtn" aria-label="도움말">?</button><button class="icon-button" id="soundBtn" aria-label="효과음 켜기">♫</button></div>
+    </header>
+    <section class="game-layout">
+      <div class="board-column">
+        <section class="hero-card">
+          <div class="hero-portrait"><span>🧙🏻‍♀️</span><b>03</b></div>
+          <div class="hero-info"><div class="eyebrow">방랑자 · 1층</div><h1>잿빛 순례자</h1><p>사라진 왕의 마지막 꿈을 쫓는다.</p></div>
+          <div class="vitals">
+            <div class="stat-line"><span>생명력</span><b id="hpText">30 / 30</b></div><div class="meter hp-meter"><i id="hpBar"></i></div>
+            <div class="stat-line second"><span>경험치 <b id="levelText">Lv. 1</b></span><b id="xpText">0 / 8</b></div><div class="meter xp-meter"><i id="xpBar"></i></div>
+          </div>
+        </section>
+        <div class="floor-line"><span><i class="floor-sigil">⌖</i> <b id="floorName">잊힌 회랑</b> <em id="floorNum">층 01</em></span><span class="seed">회차 <b id="runNum">01</b></span></div>
+        <section class="board-frame" aria-label="던전 지도">
+          <div class="board-top"><span><i class="live-dot"></i> 미지의 영역</span><span class="board-hint">이동 <kbd>WASD</kbd> <kbd>↑↓←→</kbd></span></div>
+          <canvas id="dungeon" width="576" height="576" aria-label="던전 게임 보드"></canvas>
+          <div class="board-bottom"><span>⌖ <b id="positionText">좌표 —</b></span><span><b id="turnText">턴 0</b> <i class="sep">·</i> 시야 안의 적 <b id="enemyCount">0</b></span></div>
+        </section>
+        <div class="touch-controls" aria-label="이동 조작"><button data-move="up">▲</button><div><button data-move="left">◀</button><button data-move="down">▼</button><button data-move="right">▶</button></div></div>
+        <div class="mobile-actions"><button class="action-button" id="mobilePotion">✚ 물약 <b id="mobilePotionCount">2</b></button><button class="action-button" id="mobileSearch">⌕ 주변 살피기</button></div>
+      </div>
+      <aside class="side-column">
+        <section class="panel objective-panel"><div class="panel-heading"><span>이번 여정</span><span class="mini-icon">✦</span></div><div class="quest"><span class="quest-icon">◈</span><div><b id="objectiveTitle">회랑을 통과하라</b><p id="objectiveText">아래층으로 가는 계단을 찾아라.</p></div></div><div class="quest-progress"><i id="questProgress"></i></div><div class="quest-foot"><span id="questCount">탐험 0%</span><span>보상 <b>기억의 파편</b></span></div></section>
+        <section class="panel bag-panel"><div class="panel-heading"><span>소지품</span><button class="text-button" id="inventoryBtn">모두 보기 <span>↗</span></button></div><div class="quick-items">
+          <button class="item-slot potion" id="potionBtn" title="회복 물약 사용"><span class="item-art">⚗</span><span class="item-label">회복 물약</span><b class="item-count" id="potionCount">2</b></button>
+          <button class="item-slot bomb" id="bombBtn" title="연막 폭탄 사용"><span class="item-art">◉</span><span class="item-label">연막 폭탄</span><b class="item-count" id="bombCount">1</b></button>
+          <button class="item-slot scroll" id="scrollBtn" title="봉인 해제 두루마리 사용"><span class="item-art">▤</span><span class="item-label">봉인 두루마리</span><b class="item-count" id="scrollCount">1</b></button>
+        </div><div class="gold-row"><span><i>◈</i> 은화</span><b id="goldCount">12</b></div></section>
+        <section class="panel log-panel"><div class="panel-heading"><span>탐험 기록</span><span class="log-live"><i></i> 실시간</span></div><div class="log-list" id="logList" aria-live="polite"></div></section>
+        <div class="side-footer"><span>미스터리 로드</span><span>© 잊힌 왕국의 기록</span></div>
+      </aside>
+    </section>
+    <footer class="bottom-bar"><span>탐험은 한 걸음씩 진행됩니다.</span><span><kbd>?</kbd> 도움말 <i>·</i> <kbd>Space</kbd> 대기 <i>·</i> <kbd>E</kbd> 조사</span></footer>
+  </main>
+  <div class="toast" id="toast" role="status"></div>
+  <dialog id="modal"><div class="modal-content"><button class="modal-close" id="modalClose" aria-label="닫기">×</button><div id="modalBody"></div></div></dialog>
+  <script src="game.js"></script>
+</body>
+</html>

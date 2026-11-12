@@ -1,0 +1,92 @@
+(() => {
+  'use strict';
+  const canvas = document.getElementById('dungeon');
+  const ctx = canvas.getContext('2d');
+  const SIZE = 18, TILE = canvas.width / SIZE;
+  const T = { WALL: 0, FLOOR: 1, DOOR: 2, STAIR: 3, CHEST: 4, SHRINE: 5, WATER: 6, RUBBLE: 7 };
+  const state = { map: [], seen: new Set(), visible: new Set(), player: {x: 2,y: 2}, hp: 30,maxHp: 30,xp: 0,level: 1,gold: 12,potions: 2,bombs: 1,scrolls: 1,turn: 0,run: 1,floor: 1,enemies: [],items: [],chests: [],shrine:null,kills: 0, stairs:null, gameOver:false, won:false };
+  const ui = id => document.getElementById(id);
+  let toastTimer;
+  const nowStamp = () => String(state.turn).padStart(2,'0');
+  function log(message, kind='') {
+    const list=ui('logList'), entry=document.createElement('div'); entry.className=`log-entry ${kind}`;
+    entry.innerHTML=`<span class="log-time">${nowStamp()}</span><span>${message}</span>`;
+    list.prepend(entry); while(list.children.length>5) list.lastChild.remove();
+  }
+  function toast(message){const el=ui('toast');el.textContent=message;el.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.classList.remove('show'),1900)}
+  function rngFactory(seed){let s=seed>>>0;return ()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
+  function generateFloor(){
+    const rand=rngFactory(87321+state.floor*907+state.run*151), map=Array.from({length:SIZE},()=>Array(SIZE).fill(T.WALL));
+    const rooms=[];
+    for(let i=0;i<9;i++){
+      const w=3+Math.floor(rand()*4),h=3+Math.floor(rand()*4),x=1+Math.floor(rand()*(SIZE-w-2)),y=1+Math.floor(rand()*(SIZE-h-2));
+      if(rooms.some(r=>x<=r.x+r.w+1&&x+w+1>=r.x&&y<=r.y+r.h+1&&y+h+1>=r.y))continue;
+      for(let yy=y;yy<y+h;yy++)for(let xx=x;xx<x+w;xx++)map[yy][xx]=T.FLOOR;
+      if(rooms.length){const p=rooms[rooms.length-1],px=Math.floor(p.x+p.w/2),py=Math.floor(p.y+p.h/2),nx=Math.floor(x+w/2),ny=Math.floor(y+h/2);let xx=px,yy=py;while(xx!==nx){map[yy][xx]=T.FLOOR;xx+=Math.sign(nx-xx)}while(yy!==ny){map[yy][xx]=T.FLOOR;yy+=Math.sign(ny-yy)}}
+      rooms.push({x,y,w,h});
+    }
+    if(rooms.length<2){for(let y=2;y<16;y++)for(let x=2;x<16;x++)map[y][x]=T.FLOOR;rooms.push({x:2,y:2,w:12,h:12})}
+    const center=r=>({x:Math.floor(r.x+r.w/2),y:Math.floor(r.y+r.h/2)});
+    state.player=center(rooms[0]);state.stairs=center(rooms[rooms.length-1]);map[state.stairs.y][state.stairs.x]=T.STAIR;
+    state.enemies=[];state.items=[];state.chests=[];state.seen=new Set();state.visible=new Set();state.shrine=null;
+    const used=new Set([`${state.player.x},${state.player.y}`,`${state.stairs.x},${state.stairs.y}`]);
+    function placeInRoom(room,kind){const cells=[];for(let y=room.y;y<room.y+room.h;y++)for(let x=room.x;x<room.x+room.w;x++)if(map[y][x]===T.FLOOR&&!used.has(`${x},${y}`))cells.push({x,y});if(!cells.length)return null;const p=cells[Math.floor(rand()*cells.length)];used.add(`${p.x},${p.y}`);if(kind==='chest')map[p.y][p.x]=T.CHEST;if(kind==='shrine')map[p.y][p.x]=T.SHRINE;return p}
+    const monsterTypes= state.floor===1?['그림자 쥐','잿빛 망령','길 잃은 기사']:['심연의 망령','그림자 쥐','봉인된 기사'];
+    rooms.slice(1).forEach((room,i)=>{if(rand()<.88){const p=placeInRoom(room);if(p)state.enemies.push({x:p.x,y:p.y,name:monsterTypes[Math.floor(rand()*monsterTypes.length)],hp:state.floor===1?5+Math.floor(rand()*3):7+Math.floor(rand()*4),maxHp:8,damage:2+Math.floor(rand()*3),awake:false,kind:rand()<.22?'elite':'normal'})}if(i>0&&rand()<.46){const p=placeInRoom(room,'chest');if(p)state.chests.push(p)}if(i===1&&rand()<.8){const p=placeInRoom(room,'shrine');if(p)state.shrine=p}});
+    // Open a generous starting area for a readable first turn.
+    for(let y=state.player.y-1;y<=state.player.y+1;y++)for(let x=state.player.x-1;x<=state.player.x+1;x++)if(x>0&&y>0&&x<SIZE-1&&y<SIZE-1)map[y][x]=T.FLOOR;
+    state.map=map;updateVisibility();
+  }
+  function key(x,y){return `${x},${y}`}
+  function inBounds(x,y){return x>=0&&y>=0&&x<SIZE&&y<SIZE}
+  function enemyAt(x,y){return state.enemies.find(e=>e.x===x&&e.y===y)}
+  function isWalkable(x,y){return inBounds(x,y)&&![T.WALL,T.WATER].includes(state.map[y][x])&&!enemyAt(x,y)}
+  function updateVisibility(){state.visible.clear();for(let dy=-5;dy<=5;dy++)for(let dx=-5;dx<=5;dx++){if(dx*dx+dy*dy>30)continue;const x=state.player.x+dx,y=state.player.y+dy;if(!inBounds(x,y))continue;state.visible.add(key(x,y));state.seen.add(key(x,y))}}
+  function tileColors(x,y){const n=(x*13+y*23)%5;return ['#33342d','#35362e','#30322c','#38382f','#32342e'][n]}
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);ctx.fillStyle='#11120f';ctx.fillRect(0,0,canvas.width,canvas.height);
+    for(let y=0;y<SIZE;y++)for(let x=0;x<SIZE;x++){
+      const k=key(x,y),tile=state.map[y][x],known=state.seen.has(k),visible=state.visible.has(k),px=x*TILE,py=y*TILE;
+      if(!known)continue;
+      const base=tile===T.WALL?'#1a1b18':tileColors(x,y);ctx.fillStyle=base;ctx.fillRect(px,py,TILE,TILE);
+      if(tile===T.WALL){ctx.fillStyle='#23241f';ctx.fillRect(px+1,py+1,TILE-2,TILE-3);ctx.fillStyle='#151612';ctx.fillRect(px+1,py+TILE-4,TILE-2,3);ctx.fillStyle='#292a24';ctx.fillRect(px+3,py+3,2,2);if((x+y)%3===0){ctx.strokeStyle='#30312a';ctx.beginPath();ctx.moveTo(px+TILE-4,py+4);ctx.lineTo(px+TILE-4,py+TILE-5);ctx.stroke()}}
+      else{ctx.fillStyle='#272923';ctx.fillRect(px+1,py+1,TILE-2,TILE-2);ctx.fillStyle='#424238';ctx.fillRect(px+3,py+3,1,1);if((x*7+y*5)%4===0){ctx.fillStyle='#4b4a3c';ctx.fillRect(px+TILE-5,py+TILE-6,2,1)}}
+      if(tile===T.STAIR){ctx.fillStyle='#c2ab69';ctx.globalAlpha=.7;ctx.beginPath();ctx.arc(px+TILE/2,py+TILE/2,8,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.strokeStyle='#ead494';ctx.lineWidth=1.5;for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(px+8,py+10+i*4);ctx.lineTo(px+TILE-8,py+10+i*4);ctx.stroke()}ctx.fillStyle='#fff0bb';ctx.font='10px sans-serif';ctx.textAlign='center';ctx.fillText('↓',px+TILE/2,py+TILE/2+3)}
+      if(tile===T.CHEST){ctx.fillStyle='#906c3c';ctx.fillRect(px+8,py+12,16,12);ctx.fillStyle='#bd9957';ctx.fillRect(px+8,py+12,16,4);ctx.fillStyle='#d5bc77';ctx.fillRect(px+15,py+16,3,4);ctx.fillStyle='#533d28';ctx.fillRect(px+7,py+23,18,2)}
+      if(tile===T.SHRINE){ctx.fillStyle='#685d3c';ctx.fillRect(px+14,py+14,4,10);ctx.fillStyle='#d3bd79';ctx.beginPath();ctx.arc(px+TILE/2,py+12,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#ffedb4';ctx.beginPath();ctx.arc(px+TILE/2,py+12,2,0,Math.PI*2);ctx.fill()}
+      if(tile===T.DOOR){ctx.fillStyle='#70583b';ctx.fillRect(px+9,py+5,14,24);ctx.fillStyle='#c1a265';ctx.fillRect(px+10,py+6,12,22);ctx.fillStyle='#59452e';ctx.fillRect(px+12,py+8,8,18);ctx.fillStyle='#e8cc80';ctx.fillRect(px+18,py+18,2,2)}
+      if(tile===T.RUBBLE){ctx.fillStyle='#8c8a77';ctx.fillRect(px+9,py+18,4,4);ctx.fillRect(px+16,py+14,5,4);ctx.fillRect(px+14,py+22,6,3)}
+      const enemy=enemyAt(x,y);if(enemy&&visible)drawEnemy(px,py,enemy);
+      if(x===state.player.x&&y===state.player.y)drawPlayer(px,py);
+      if(!visible){ctx.fillStyle='rgba(5,6,6,.58)';ctx.fillRect(px,py,TILE,TILE)}
+      if(visible){ctx.strokeStyle='rgba(12,13,11,.38)';ctx.lineWidth=.6;ctx.strokeRect(px+.3,py+.3,TILE-.6,TILE-.6)}
+    }
+    updateUI();
+  }
+  function drawPlayer(x,y){ctx.fillStyle='#c9a95e';ctx.globalAlpha=.25;ctx.beginPath();ctx.arc(x+TILE/2,y+TILE/2,13,0,Math.PI*2);ctx.fill();ctx.globalAlpha=1;ctx.fillStyle='#4e4230';ctx.beginPath();ctx.moveTo(x+10,y+24);ctx.lineTo(x+14,y+11);ctx.lineTo(x+18,y+9);ctx.lineTo(x+22,y+13);ctx.lineTo(x+25,y+25);ctx.fill();ctx.fillStyle='#d4c49d';ctx.beginPath();ctx.arc(x+18,y+11,5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#94876c';ctx.fillRect(x+12,y+15,12,10);ctx.fillStyle='#e5cb83';ctx.fillRect(x+17,y+14,2,4);ctx.fillStyle='#eee4c6';ctx.fillRect(x+19,y+10,2,2)}
+  function drawEnemy(x,y,e){const elite=e.kind==='elite';ctx.fillStyle=elite?'rgba(181,93,69,.19)':'rgba(170,170,145,.13)';ctx.beginPath();ctx.arc(x+TILE/2,y+TILE/2,12,0,Math.PI*2);ctx.fill();if(e.name.includes('쥐')){ctx.fillStyle='#96907e';ctx.beginPath();ctx.ellipse(x+18,y+19,7,5,0,0,Math.PI*2);ctx.fill();ctx.fillStyle='#d8b27f';ctx.beginPath();ctx.arc(x+24,y+18,3.5,0,Math.PI*2);ctx.fill();ctx.fillStyle='#b84e46';ctx.fillRect(x+25,y+17,2,2);ctx.beginPath();ctx.moveTo(x+12,y+16);ctx.lineTo(x+9,y+10);ctx.lineTo(x+16,y+14);ctx.fill()}else{ctx.fillStyle=elite?'#765148':'#71756e';ctx.beginPath();ctx.moveTo(x+9,y+26);ctx.lineTo(x+12,y+14);ctx.lineTo(x+14,y+10);ctx.lineTo(x+21,y+10);ctx.lineTo(x+25,y+17);ctx.lineTo(x+26,y+26);ctx.fill();ctx.fillStyle='#bfb59a';ctx.beginPath();ctx.arc(x+18,y+12,5,0,Math.PI*2);ctx.fill();ctx.fillStyle=elite?'#e77d5c':'#d7c89b';ctx.fillRect(x+15,y+12,2,2);ctx.fillRect(x+20,y+12,2,2);ctx.fillStyle='#9c8b65';ctx.fillRect(x+11,y+20,14,2)}if(e.hp<e.maxHp){ctx.fillStyle='#24241f';ctx.fillRect(x+8,y+5,20,3);ctx.fillStyle='#d27462';ctx.fillRect(x+8,y+5,20*e.hp/e.maxHp,3)}}
+  function updateUI(){ui('hpText').textContent=`${state.hp} / ${state.maxHp}`;ui('hpBar').style.width=`${100*state.hp/state.maxHp}%`;ui('levelText').textContent=`Lv. ${state.level}`;const need=state.level*8;ui('xpText').textContent=`${state.xp} / ${need}`;ui('xpBar').style.width=`${100*state.xp/need}%`;ui('potionCount').textContent=state.potions;ui('mobilePotionCount').textContent=state.potions;ui('bombCount').textContent=state.bombs;ui('scrollCount').textContent=state.scrolls;ui('goldCount').textContent=state.gold;ui('turnText').textContent=`턴 ${state.turn}`;ui('positionText').textContent=`좌표 ${String(state.player.x+1).padStart(2,'0')}·${String(state.player.y+1).padStart(2,'0')}`;ui('floorNum').textContent=`층 ${String(state.floor).padStart(2,'0')}`;ui('runNum').textContent=String(state.run).padStart(2,'0');ui('enemyCount').textContent=state.enemies.filter(e=>state.visible.has(key(e.x,e.y))).length;const explored=state.seen.size/(SIZE*SIZE-36);const pct=Math.min(100,Math.round(explored*100));ui('questProgress').style.width=`${pct}%`;ui('questCount').textContent=`탐험 ${pct}%`;ui('objectiveTitle').textContent=state.floor>=3?'왕의 기억을 찾아라':'회랑을 통과하라';ui('objectiveText').textContent=state.floor>=3?'잊힌 왕국의 마지막 봉인을 찾아라.':'아래층으로 가는 계단을 찾아라.';ui('floorName').textContent=state.floor===1?'잊힌 회랑':state.floor===2?'속삭임의 납골당':'왕의 기억';}
+  function damagePlayer(amount,source='적'){state.hp=Math.max(0,state.hp-amount);log(`${source}의 공격! 생명력 ${amount} 감소.`, 'warn');if(state.hp<=0)endRun(false)}
+  function attack(enemy){const dmg=4+Math.floor(Math.random()*4)+(state.level-1)*2;enemy.hp-=dmg;state.turn++;log(`잿빛 검으로 ${enemy.name}을(를) 베었다. (${dmg})`, 'good');if(enemy.hp<=0){state.enemies=state.enemies.filter(e=>e!==enemy);state.xp+=enemy.kind==='elite'?5:3;state.gold+=enemy.kind==='elite'?5:2;state.kills++;log(`${enemy.name}을(를) 쓰러뜨렸다. 은화와 경험치를 얻었다.`, 'gold');checkLevel()}else{enemy.awake=true;enemyFlash()};enemyTurns();updateVisibility();draw()}
+  function enemyFlash(){canvas.classList.remove('hit');void canvas.offsetWidth;canvas.classList.add('hit');setTimeout(()=>canvas.classList.remove('hit'),160)}
+  function checkLevel(){if(state.xp>=state.level*8){state.xp-=state.level*8;state.level++;state.maxHp+=5;state.hp=Math.min(state.maxHp,state.hp+8);log(`레벨 상승! Lv. ${state.level} · 생명력이 회복되었다.`, 'gold');toast(`레벨 상승! Lv. ${state.level}`)}}
+  function enemyTurns(){for(const e of [...state.enemies]){if(!e.awake&&Math.abs(e.x-state.player.x)+Math.abs(e.y-state.player.y)>5)continue;e.awake=true;const dist=Math.abs(e.x-state.player.x)+Math.abs(e.y-state.player.y);if(dist===1){damagePlayer(e.damage,e.name);if(state.gameOver)return;continue}let candidates=[[e.x+Math.sign(state.player.x-e.x),e.y],[e.x,e.y+Math.sign(state.player.y-e.y)]];if(Math.random()<.5)candidates.reverse();for(const [x,y] of candidates){if((x!==state.player.x||y!==state.player.y)&&isWalkable(x,y)&&state.map[y][x]===T.FLOOR){e.x=x;e.y=y;break}}}updateVisibility()}
+  function step(dx,dy){if(state.gameOver||state.won)return;const x=state.player.x+dx,y=state.player.y+dy;if(!inBounds(x,y))return;const enemy=enemyAt(x,y);if(enemy){attack(enemy);return}const tile=state.map[y][x];if(tile===T.WALL){toast('벽이 길을 막고 있다.');return}if(tile===T.WATER){toast('깊은 물이라 건널 수 없다.');return}if(tile===T.STAIR){descend();return}if(tile===T.CHEST){openChest(x,y);return}if(tile===T.SHRINE){useShrine(x,y);return}state.player={x,y};state.turn++;const item=state.items.find(i=>i.x===x&&i.y===y);if(item){state.items=state.items.filter(i=>i!==item);if(item.type==='potion'){state.potions++;log('바닥에서 회복 물약을 주웠다.','good')}else{state.gold+=item.amount;log(`은화 ${item.amount}개를 주웠다.`,'gold')}}enemyTurns();updateVisibility();draw()}
+  function openChest(x,y){const bonus=5+Math.floor(Math.random()*9);state.gold+=bonus;state.potions++;state.map[y][x]=T.FLOOR;state.chests=state.chests.filter(c=>c.x!==x||c.y!==y);state.turn++;log(`낡은 상자를 열었다. 은화 ${bonus}개와 물약을 발견했다!`,'gold');toast('상자를 열었다');enemyTurns();draw()}
+  function useShrine(x,y){state.map[y][x]=T.FLOOR;state.shrine=null;state.hp=Math.min(state.maxHp,state.hp+12);state.turn++;log('낡은 제단에 기도했다. 생명력이 회복된다.','good');toast('제단이 희미하게 빛난다');enemyTurns();draw()}
+  function descend(){if(state.floor>=3){state.won=true;state.turn++;log('마침내 왕의 기억을 되찾았다.','gold');draw();setTimeout(()=>showEnd(true),400);return}state.floor++;state.turn++;state.hp=Math.min(state.maxHp,state.hp+5);generateFloor();log(`계단을 내려왔다. ${ui('floorName').textContent}에 도착했다.`,'gold');toast(`층 ${String(state.floor).padStart(2,'0')} · 새로운 영역`);draw()}
+  function usePotion(){if(state.potions<=0){toast('회복 물약이 없다.');return}if(state.hp===state.maxHp){toast('생명력이 이미 가득하다.');return}state.potions--;const healed=Math.min(12,state.maxHp-state.hp);state.hp+=healed;state.turn++;log(`회복 물약을 마셨다. 생명력 ${healed} 회복.`,'good');enemyTurns();draw()}
+  function useBomb(){if(state.bombs<=0){toast('연막 폭탄이 없다.');return}state.bombs--;let hit=0;state.enemies=state.enemies.filter(e=>{if(Math.abs(e.x-state.player.x)<=2&&Math.abs(e.y-state.player.y)<=2){hit++;state.xp+=2;return false}return true});state.turn++;log(hit?`연막 폭탄이 터졌다. 적 ${hit}마리가 사라졌다.`:'연막 폭탄을 던졌다. 가까이에 적이 없다.',hit?'good':'');checkLevel();enemyTurns();draw()}
+  function useScroll(){if(state.scrolls<=0){toast('봉인 두루마리가 없다.');return}state.scrolls--;let healed=0;state.enemies=state.enemies.filter(e=>{if(Math.abs(e.x-state.player.x)<=4&&Math.abs(e.y-state.player.y)<=4){healed+=3;return false}return true});state.hp=Math.min(state.maxHp,state.hp+healed);state.turn++;log(healed?`봉인 두루마리가 빛났다. 적이 사라지고 생명력 ${healed} 회복.`:'두루마리의 빛이 어둠을 밀어냈다.', 'gold');enemyTurns();draw()}
+  function waitTurn(){if(state.gameOver||state.won)return;state.turn++;log('숨을 고르고 주변을 살폈다.');enemyTurns();draw()}
+  function search(){if(state.gameOver)return;const near=state.enemies.find(e=>Math.abs(e.x-state.player.x)+Math.abs(e.y-state.player.y)<=2);if(near){log(`가까이에서 ${near.name}의 기척이 느껴진다.`,'warn');toast(`${near.name}이(가) 가까이 있다.`);return}const chest=state.chests.find(c=>Math.abs(c.x-state.player.x)+Math.abs(c.y-state.player.y)<=2);if(chest){log('근처에서 작은 상자의 윤곽이 보인다.','gold');toast('상자가 가까이 있다.');return}if(state.shrine&&Math.abs(state.shrine.x-state.player.x)+Math.abs(state.shrine.y-state.player.y)<=2){toast('낡은 제단의 기운이 느껴진다.');return}toast('주변에는 특별한 것이 없다.')}
+  function endRun(win){state.gameOver=!win;state.won=win;showEnd(win)}
+  function showEnd(win){const body=ui('modalBody');body.innerHTML=win?`<div class="eyebrow">여정의 끝 · 잿빛 심연</div><h2>왕의 기억을 되찾았다</h2><p>잿빛 순례자는 마침내 미스터리 로드의 마지막 꿈을 마주했다. 잊힌 왕국의 이야기는 아직 끝나지 않았다.</p><p class="modal-note">${state.floor}층 도달 · 적 ${state.kills}마리 처치 · ${state.turn}턴</p><button class="action-button" id="restartBtn">새로운 여정 시작</button>`:`<div class="eyebrow">여정의 끝 · 잿빛 심연</div><h2>어둠이 순례자를 삼켰다</h2><p>이번 여정은 여기서 끝났지만, 왕의 기억은 여전히 심연 깊은 곳에 잠들어 있다.</p><p class="modal-note">${state.floor}층 도달 · 적 ${state.kills}마리 처치 · ${state.turn}턴</p><button class="action-button" id="restartBtn">다시 도전하기</button>`;ui('modal').showModal();setTimeout(()=>{const b=ui('restartBtn');if(b)b.onclick=restart},0)}
+  function restart(){state.hp=30;state.maxHp=30;state.xp=0;state.level=1;state.gold=12;state.potions=2;state.bombs=1;state.scrolls=1;state.turn=0;state.floor=1;state.run++;state.kills=0;state.gameOver=false;state.won=false;ui('logList').innerHTML='';ui('modal').close();generateFloor();log('잿빛 회랑에 발을 들였다. 벽 너머로 희미한 기척이 들린다.');draw()}
+  function showHelp(){ui('modalBody').innerHTML='<div class="eyebrow">탐험 안내</div><h2>잿빛 심연에서 살아남기</h2><ul><li><b>이동:</b> WASD 또는 방향키. 인접한 적에게 이동하면 공격한다.</li><li><b>대기:</b> 스페이스바. 적도 함께 움직이니 신중하게!</li><li><b>조사:</b> E 키로 가까운 적, 상자, 제단의 기척을 확인한다.</li><li><b>아이템:</b> 물약은 생명력을 회복하고, 폭탄은 가까운 적을 쓸어버린다. 두루마리는 주변 적을 봉인한다.</li><li><b>진행:</b> 상자를 열고 제단에 기도하며 아래층 계단을 찾자. 3층의 계단이 여정의 끝이다.</li></ul><p class="modal-note">미스터리 로드의 세계관을 바탕으로 만든 팬메이드 던전 탐험 게임.</p>';ui('modal').showModal()}
+  window.addEventListener('keydown',e=>{if(ui('modal').open){if(e.key==='Escape')ui('modal').close();return}const k=e.key.toLowerCase();const dirs={arrowup:[0,-1],w:[0,-1],arrowdown:[0,1],s:[0,1],arrowleft:[-1,0],a:[-1,0],arrowright:[1,0],d:[1,0]};if(dirs[k]){e.preventDefault();step(...dirs[k])}else if(k===' '){e.preventDefault();waitTurn()}else if(k==='e'){search()}else if(k==='1'){usePotion()}else if(k==='2'){useBomb()}else if(k==='3'){useScroll()}});
+  canvas.addEventListener('click',e=>{const r=canvas.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*SIZE),y=Math.floor((e.clientY-r.top)/r.height*SIZE),dx=x-state.player.x,dy=y-state.player.y;if(Math.abs(dx)+Math.abs(dy)===1)step(dx,dy);else if(x===state.player.x&&y===state.player.y)waitTurn()});
+  document.querySelectorAll('[data-move]').forEach(b=>b.addEventListener('click',()=>{const dirs={up:[0,-1],down:[0,1],left:[-1,0],right:[1,0]};step(...dirs[b.dataset.move])}));
+  ui('potionBtn').onclick=ui('mobilePotion').onclick=usePotion;ui('bombBtn').onclick=useBomb;ui('scrollBtn').onclick=useScroll;ui('mobileSearch').onclick=search;ui('helpBtn').onclick=showHelp;ui('modalClose').onclick=()=>ui('modal').close();ui('inventoryBtn').onclick=()=>{ui('modalBody').innerHTML='<div class="eyebrow">소지품</div><h2>여정의 도구</h2><ul><li>회복 물약 × '+state.potions+' — 생명력 12 회복</li><li>연막 폭탄 × '+state.bombs+' — 가까운 적을 처치</li><li>봉인 두루마리 × '+state.scrolls+' — 주변 적을 봉인하고 생명력 회복</li><li>은화 × '+state.gold+' — 아직 쓸 곳이 없다.</li></ul><p class="modal-note">아이템은 화면의 칸을 누르거나 숫자키 1, 2, 3으로 사용할 수 있다.</p>';ui('modal').showModal()};ui('soundBtn').onclick=()=>toast('고요한 심연을 탐험하고 있다.');
+  generateFloor();log('잿빛 회랑에 발을 들였다. 벽 너머로 희미한 기척이 들린다.');log('이동은 방향키 또는 WASD, E 키로 주변을 살필 수 있다.');draw();
+})();
