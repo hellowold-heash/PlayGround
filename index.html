@@ -18,7 +18,7 @@
       <div class="board-column">
         <section class="hero-card">
           <div class="hero-portrait"><span>🧙🏻‍♀️</span><b>03</b></div>
-          <div class="hero-info"><div class="eyebrow">방랑자 · 1층</div><h1>잿빛 순례자</h1><p>사라진 왕의 마지막 꿈을 쫓는다.</p></div>
+          <div class="hero-info"><div class="eyebrow" id="pathwayText">광대 경로 · 서열 9</div><h1>잿빛 순례자</h1><p>회색 안개 너머, 잊힌 운명을 추적한다.</p></div>
           <div class="vitals">
             <div class="stat-line"><span>생명력</span><b id="hpText">30 / 30</b></div><div class="meter hp-meter"><i id="hpBar"></i></div>
             <div class="stat-line second"><span>경험치 <b id="levelText">Lv. 1</b></span><b id="xpText">0 / 8</b></div><div class="meter xp-meter"><i id="xpBar"></i></div>
@@ -34,7 +34,7 @@
         <div class="mobile-actions"><button class="action-button" id="mobilePotion">✚ 물약 <b id="mobilePotionCount">2</b></button><button class="action-button" id="mobileSearch">⌕ 주변 살피기</button></div>
       </div>
       <aside class="side-column">
-        <section class="panel objective-panel"><div class="panel-heading"><span>이번 여정</span><span class="mini-icon">✦</span></div><div class="quest"><span class="quest-icon">◈</span><div><b id="objectiveTitle">회랑을 통과하라</b><p id="objectiveText">아래층으로 가는 계단을 찾아라.</p></div></div><div class="quest-progress"><i id="questProgress"></i></div><div class="quest-foot"><span id="questCount">탐험 0%</span><span>보상 <b>기억의 파편</b></span></div></section>
+        <section class="panel objective-panel"><div class="panel-heading"><span>이번 여정</span><span class="mini-icon">✦</span></div><div class="quest"><span class="quest-icon">◈</span><div><b id="objectiveTitle">회랑을 통과하라</b><p id="objectiveText">아래층으로 가는 계단을 찾아라.</p></div></div><div class="quest-progress"><i id="questProgress"></i></div><div class="quest-foot"><span id="questCount">탐험 0%</span><span>보상 <b>기억의 파편</b></span></div><div class="fate-skill"><span class="skill-glyph">☼</span><div><b>운명 엿보기 <kbd>Q</kbd></b><small id="skillHint">적의 기척을 읽고 기회를 만든다.</small></div><button id="skillBtn" aria-label="운명 엿보기 사용">사용</button></div><div class="boss-status" id="bossStatus" hidden></div></section>
         <section class="panel bag-panel"><div class="panel-heading"><span>소지품</span><button class="text-button" id="inventoryBtn">모두 보기 <span>↗</span></button></div><div class="quick-items">
           <button class="item-slot potion" id="potionBtn" title="회복 물약 사용"><span class="item-art">⚗</span><span class="item-label">회복 물약</span><b class="item-count" id="potionCount">2</b></button>
           <button class="item-slot bomb" id="bombBtn" title="연막 폭탄 사용"><span class="item-art">◉</span><span class="item-label">연막 폭탄</span><b class="item-count" id="bombCount">1</b></button>
